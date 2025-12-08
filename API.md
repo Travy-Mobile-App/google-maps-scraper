@@ -174,7 +174,7 @@ curl -X GET "http://localhost:8080/api/v1/jobs/550e8400-e29b-41d4-a716-446655440
 
 ---
 
-### 4. Download Job Results
+### 4. Download Job Results (CSV)
 
 Download the results of a completed job as a CSV file.
 
@@ -197,6 +197,79 @@ Download the results of a completed job as a CSV file.
 curl -X GET "http://localhost:8080/api/v1/jobs/550e8400-e29b-41d4-a716-446655440000/download" \
   --output results.csv
 ```
+
+---
+
+### 4b. Get Job Results (JSON)
+
+Get the results of a completed job as JSON.
+
+**Endpoint:** `GET /api/v1/jobs/{id}/results`
+
+**Path Parameters:**
+- `id` (string, required) - Job UUID
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "input_id": "uuid-here",
+    "link": "https://www.google.com/maps/place/...",
+    "title": "Business Name",
+    "category": "Restaurant",
+    "categories": ["Restaurant", "Food"],
+    "address": "123 Main St, City, State",
+    "open_hours": {
+      "Monday": ["9:00 AM - 5:00 PM"],
+      "Tuesday": ["9:00 AM - 5:00 PM"]
+    },
+    "popular_times": {},
+    "web_site": "https://example.com",
+    "phone": "+1234567890",
+    "plus_code": "ABC123",
+    "review_count": 150,
+    "review_rating": 4.5,
+    "reviews_per_rating": {
+      "1": 5,
+      "2": 10,
+      "3": 20,
+      "4": 40,
+      "5": 75
+    },
+    "latitude": 40.7128,
+    "longtitude": -74.0060,
+    "status": "Open",
+    "description": "Business description",
+    "reviews_link": "https://...",
+    "thumbnail": "https://...",
+    "timezone": "America/New_York",
+    "price_range": "$$",
+    "data_id": "0x...",
+    "images": [],
+    "reservations": [],
+    "order_online": [],
+    "menu": {},
+    "owner": {},
+    "complete_address": {},
+    "about": [],
+    "user_reviews": [],
+    "user_reviews_extended": [],
+    "emails": []
+  }
+]
+```
+
+**Error Responses:**
+- `404 Not Found` - Job or results file not found
+- `422 Unprocessable Entity` - Invalid job ID
+- `500 Internal Server Error` - Server error
+
+**Example:**
+```bash
+curl -X GET "http://localhost:8080/api/v1/jobs/550e8400-e29b-41d4-a716-446655440000/results"
+```
+
+**Note:** This endpoint returns all scraped results as a JSON array. Each result contains all available fields from the scraping process.
 
 ---
 
@@ -285,10 +358,15 @@ while true; do
 done
 ```
 
-### 4. Download Results
+### 4. Download Results (CSV)
 ```bash
 curl -X GET "http://localhost:8080/api/v1/jobs/$JOB_ID/download" \
   --output results.csv
+```
+
+### 4b. Get Results (JSON)
+```bash
+curl -X GET "http://localhost:8080/api/v1/jobs/$JOB_ID/results" | jq
 ```
 
 ### 5. Clean Up

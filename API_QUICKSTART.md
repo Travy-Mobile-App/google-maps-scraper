@@ -38,10 +38,16 @@ Response:
 curl "http://localhost:8080/api/v1/jobs/{job-id}"
 ```
 
-### Download Results
+### Download Results (CSV)
 
 ```bash
 curl "http://localhost:8080/api/v1/jobs/{job-id}/download" --output results.csv
+```
+
+### Get Results (JSON)
+
+```bash
+curl "http://localhost:8080/api/v1/jobs/{job-id}/results"
 ```
 
 ### List All Jobs

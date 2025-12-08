@@ -157,6 +157,47 @@ paths:
         '500':
           description: Internal server error
 
+  /api/v1/jobs/{id}/results:
+    get:
+      summary: Get job results as JSON
+      x-code-samples:
+        - lang: curl
+          source: |
+            curl -X GET "http://localhost:8080/api/v1/jobs/18eafda3-53a9-4970-ac96-8f8dfc7011c3/results"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Result'
+        '404':
+          description: Job or results not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: Invalid ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
 components:
   schemas:
     ApiError:
@@ -246,6 +287,94 @@ components:
         max_time:
           type: integer
         proxies:
+          type: array
+          items:
+            type: string
+
+    Result:
+      type: object
+      properties:
+        input_id:
+          type: string
+        link:
+          type: string
+        cid:
+          type: string
+        title:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+        category:
+          type: string
+        address:
+          type: string
+        open_hours:
+          type: object
+        popular_times:
+          type: object
+        web_site:
+          type: string
+        phone:
+          type: string
+        plus_code:
+          type: string
+        review_count:
+          type: integer
+        review_rating:
+          type: number
+        reviews_per_rating:
+          type: object
+        latitude:
+          type: number
+        longtitude:
+          type: number
+        status:
+          type: string
+        description:
+          type: string
+        reviews_link:
+          type: string
+        thumbnail:
+          type: string
+        timezone:
+          type: string
+        price_range:
+          type: string
+        data_id:
+          type: string
+        images:
+          type: array
+          items:
+            type: object
+        reservations:
+          type: array
+          items:
+            type: object
+        order_online:
+          type: array
+          items:
+            type: object
+        menu:
+          type: object
+        owner:
+          type: object
+        complete_address:
+          type: object
+        about:
+          type: array
+          items:
+            type: object
+        user_reviews:
+          type: array
+          items:
+            type: object
+        user_reviews_extended:
+          type: array
+          items:
+            type: object
+        emails:
           type: array
           items:
             type: string
