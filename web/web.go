@@ -83,56 +83,80 @@ func New(svc *Service, addr string) (*Server, error) {
 		}
 	})
 
-	mux.HandleFunc("/api/v1/jobs/{id}", func(w http.ResponseWriter, r *http.Request) {
-		r = requestWithID(r)
-
-		switch r.Method {
-		case http.MethodGet:
-			ans.apiGetJob(w, r)
-		case http.MethodDelete:
-			ans.apiDeleteJob(w, r)
-		default:
-			ans := apiError{
-				Code:    http.StatusMethodNotAllowed,
-				Message: "Method not allowed",
+	// Handle /api/v1/jobs/{id} and sub-routes
+	// Standard http.ServeMux doesn't support {id} syntax, so we parse manually
+	mux.HandleFunc("/api/v1/jobs/", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/api/v1/jobs/")
+		parts := strings.Split(path, "/")
+		
+		if len(parts) >= 2 && parts[1] == "results" {
+			// Handle /api/v1/jobs/{id}/results
+			id := parts[0]
+			if id != "" {
+				parsed, err := uuid.Parse(id)
+				if err == nil {
+					r = r.WithContext(context.WithValue(r.Context(), idCtxKey, parsed))
+					if r.Method == http.MethodGet {
+						ans.apiGetResults(w, r)
+						return
+					}
+					apiError := apiError{
+						Code:    http.StatusMethodNotAllowed,
+						Message: "Method not allowed",
+					}
+					renderJSON(w, http.StatusMethodNotAllowed, apiError)
+					return
+				}
 			}
-
-			renderJSON(w, http.StatusMethodNotAllowed, ans)
-		}
-	})
-
-	mux.HandleFunc("/api/v1/jobs/{id}/download", func(w http.ResponseWriter, r *http.Request) {
-		r = requestWithID(r)
-
-		if r.Method != http.MethodGet {
-			ans := apiError{
-				Code:    http.StatusMethodNotAllowed,
-				Message: "Method not allowed",
+		} else if len(parts) >= 2 && parts[1] == "download" {
+			// Handle /api/v1/jobs/{id}/download
+			id := parts[0]
+			if id != "" {
+				parsed, err := uuid.Parse(id)
+				if err == nil {
+					r = r.WithContext(context.WithValue(r.Context(), idCtxKey, parsed))
+					if r.Method == http.MethodGet {
+						ans.download(w, r)
+						return
+					}
+					apiError := apiError{
+						Code:    http.StatusMethodNotAllowed,
+						Message: "Method not allowed",
+					}
+					renderJSON(w, http.StatusMethodNotAllowed, apiError)
+					return
+				}
 			}
-
-			renderJSON(w, http.StatusMethodNotAllowed, ans)
-
-			return
-		}
-
-		ans.download(w, r)
-	})
-
-	mux.HandleFunc("/api/v1/jobs/{id}/results", func(w http.ResponseWriter, r *http.Request) {
-		r = requestWithID(r)
-
-		if r.Method != http.MethodGet {
-			ans := apiError{
-				Code:    http.StatusMethodNotAllowed,
-				Message: "Method not allowed",
+		} else if len(parts) == 1 && parts[0] != "" {
+			// Handle /api/v1/jobs/{id}
+			id := parts[0]
+			parsed, err := uuid.Parse(id)
+			if err == nil {
+				r = r.WithContext(context.WithValue(r.Context(), idCtxKey, parsed))
+				switch r.Method {
+				case http.MethodGet:
+					ans.apiGetJob(w, r)
+					return
+				case http.MethodDelete:
+					ans.apiDeleteJob(w, r)
+					return
+				default:
+					apiError := apiError{
+						Code:    http.StatusMethodNotAllowed,
+						Message: "Method not allowed",
+					}
+					renderJSON(w, http.StatusMethodNotAllowed, apiError)
+					return
+				}
 			}
-
-			renderJSON(w, http.StatusMethodNotAllowed, ans)
-
-			return
 		}
-
-		ans.apiGetResults(w, r)
+		
+		// If no match, return 404
+		apiError := apiError{
+			Code:    http.StatusNotFound,
+			Message: "Not found",
+		}
+		renderJSON(w, http.StatusNotFound, apiError)
 	})
 
 	handler := securityHeaders(mux)
