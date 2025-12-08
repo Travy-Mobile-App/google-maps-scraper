@@ -87,12 +87,19 @@ func New(svc *Service, addr string) (*Server, error) {
 			return
 		}
 		
-		// Split path into parts
-		parts := strings.Split(path, "/")
+		// Split path into parts and trim each part
+		rawParts := strings.Split(path, "/")
+		parts := make([]string, 0, len(rawParts))
+		for _, p := range rawParts {
+			trimmed := strings.TrimSpace(p)
+			if trimmed != "" {
+				parts = append(parts, trimmed)
+			}
+		}
 		
 		// Handle /api/v1/jobs/{id}/results
 		if len(parts) == 2 && parts[1] == "results" {
-			id := strings.TrimSpace(parts[0])
+			id := parts[0]
 			if id == "" {
 				apiError := apiError{
 					Code:    http.StatusUnprocessableEntity,
@@ -128,7 +135,7 @@ func New(svc *Service, addr string) (*Server, error) {
 		
 		// Handle /api/v1/jobs/{id}/download
 		if len(parts) == 2 && parts[1] == "download" {
-			id := strings.TrimSpace(parts[0])
+			id := parts[0]
 			if id == "" {
 				apiError := apiError{
 					Code:    http.StatusUnprocessableEntity,
@@ -164,7 +171,7 @@ func New(svc *Service, addr string) (*Server, error) {
 		
 		// Handle /api/v1/jobs/{id}
 		if len(parts) == 1 && parts[0] != "" {
-			id := strings.TrimSpace(parts[0])
+			id := parts[0]
 			if id == "" {
 				apiError := apiError{
 					Code:    http.StatusUnprocessableEntity,
