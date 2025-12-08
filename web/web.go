@@ -67,6 +67,150 @@ func New(svc *Service, addr string) (*Server, error) {
 
 	// api routes
 	mux.HandleFunc("/api/docs", ans.redocHandler)
+	
+	// Handle /api/v1/jobs/{id} and sub-routes FIRST
+	// Standard http.ServeMux doesn't support {id} syntax, so we parse manually
+	// This must be registered BEFORE /api/v1/jobs to ensure it matches first
+	mux.HandleFunc("/api/v1/jobs/", func(w http.ResponseWriter, r *http.Request) {
+		// Remove leading /api/v1/jobs/ to get the remaining path
+		path := strings.TrimPrefix(r.URL.Path, "/api/v1/jobs/")
+		// Clean up any leading/trailing slashes
+		path = strings.Trim(path, "/")
+		
+		if path == "" {
+			// Empty path - should be handled by /api/v1/jobs route
+			apiError := apiError{
+				Code:    http.StatusNotFound,
+				Message: "Not found",
+			}
+			renderJSON(w, http.StatusNotFound, apiError)
+			return
+		}
+		
+		// Split path into parts
+		parts := strings.Split(path, "/")
+		
+		// Handle /api/v1/jobs/{id}/results
+		if len(parts) == 2 && parts[1] == "results" {
+			id := strings.TrimSpace(parts[0])
+			if id == "" {
+				apiError := apiError{
+					Code:    http.StatusUnprocessableEntity,
+					Message: "Invalid job ID: empty",
+				}
+				renderJSON(w, http.StatusUnprocessableEntity, apiError)
+				return
+			}
+			
+			parsed, err := uuid.Parse(id)
+			if err != nil {
+				apiError := apiError{
+					Code:    http.StatusUnprocessableEntity,
+					Message: fmt.Sprintf("Invalid job ID: %v", err),
+				}
+				renderJSON(w, http.StatusUnprocessableEntity, apiError)
+				return
+			}
+			
+			r = r.WithContext(context.WithValue(r.Context(), idCtxKey, parsed))
+			if r.Method == http.MethodGet {
+				ans.apiGetResults(w, r)
+				return
+			}
+			
+			apiError := apiError{
+				Code:    http.StatusMethodNotAllowed,
+				Message: "Method not allowed",
+			}
+			renderJSON(w, http.StatusMethodNotAllowed, apiError)
+			return
+		}
+		
+		// Handle /api/v1/jobs/{id}/download
+		if len(parts) == 2 && parts[1] == "download" {
+			id := strings.TrimSpace(parts[0])
+			if id == "" {
+				apiError := apiError{
+					Code:    http.StatusUnprocessableEntity,
+					Message: "Invalid job ID: empty",
+				}
+				renderJSON(w, http.StatusUnprocessableEntity, apiError)
+				return
+			}
+			
+			parsed, err := uuid.Parse(id)
+			if err != nil {
+				apiError := apiError{
+					Code:    http.StatusUnprocessableEntity,
+					Message: fmt.Sprintf("Invalid job ID: %v", err),
+				}
+				renderJSON(w, http.StatusUnprocessableEntity, apiError)
+				return
+			}
+			
+			r = r.WithContext(context.WithValue(r.Context(), idCtxKey, parsed))
+			if r.Method == http.MethodGet {
+				ans.download(w, r)
+				return
+			}
+			
+			apiError := apiError{
+				Code:    http.StatusMethodNotAllowed,
+				Message: "Method not allowed",
+			}
+			renderJSON(w, http.StatusMethodNotAllowed, apiError)
+			return
+		}
+		
+		// Handle /api/v1/jobs/{id}
+		if len(parts) == 1 && parts[0] != "" {
+			id := strings.TrimSpace(parts[0])
+			if id == "" {
+				apiError := apiError{
+					Code:    http.StatusUnprocessableEntity,
+					Message: "Invalid job ID: empty",
+				}
+				renderJSON(w, http.StatusUnprocessableEntity, apiError)
+				return
+			}
+			
+			parsed, err := uuid.Parse(id)
+			if err != nil {
+				apiError := apiError{
+					Code:    http.StatusUnprocessableEntity,
+					Message: fmt.Sprintf("Invalid job ID: %v", err),
+				}
+				renderJSON(w, http.StatusUnprocessableEntity, apiError)
+				return
+			}
+			
+			r = r.WithContext(context.WithValue(r.Context(), idCtxKey, parsed))
+			switch r.Method {
+			case http.MethodGet:
+				ans.apiGetJob(w, r)
+				return
+			case http.MethodDelete:
+				ans.apiDeleteJob(w, r)
+				return
+			default:
+				apiError := apiError{
+					Code:    http.StatusMethodNotAllowed,
+					Message: "Method not allowed",
+				}
+				renderJSON(w, http.StatusMethodNotAllowed, apiError)
+				return
+			}
+		}
+		
+		// If no match, return 404 with debug info
+		apiError := apiError{
+			Code:    http.StatusNotFound,
+			Message: fmt.Sprintf("Not found: path=%q, parts=%v", path, parts),
+		}
+		renderJSON(w, http.StatusNotFound, apiError)
+	})
+
+	// Handle /api/v1/jobs (without trailing slash) - must be after /api/v1/jobs/
 	mux.HandleFunc("/api/v1/jobs", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
@@ -81,82 +225,6 @@ func New(svc *Service, addr string) (*Server, error) {
 
 			renderJSON(w, http.StatusMethodNotAllowed, ans)
 		}
-	})
-
-	// Handle /api/v1/jobs/{id} and sub-routes
-	// Standard http.ServeMux doesn't support {id} syntax, so we parse manually
-	mux.HandleFunc("/api/v1/jobs/", func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/api/v1/jobs/")
-		parts := strings.Split(path, "/")
-		
-		if len(parts) >= 2 && parts[1] == "results" {
-			// Handle /api/v1/jobs/{id}/results
-			id := parts[0]
-			if id != "" {
-				parsed, err := uuid.Parse(id)
-				if err == nil {
-					r = r.WithContext(context.WithValue(r.Context(), idCtxKey, parsed))
-					if r.Method == http.MethodGet {
-						ans.apiGetResults(w, r)
-						return
-					}
-					apiError := apiError{
-						Code:    http.StatusMethodNotAllowed,
-						Message: "Method not allowed",
-					}
-					renderJSON(w, http.StatusMethodNotAllowed, apiError)
-					return
-				}
-			}
-		} else if len(parts) >= 2 && parts[1] == "download" {
-			// Handle /api/v1/jobs/{id}/download
-			id := parts[0]
-			if id != "" {
-				parsed, err := uuid.Parse(id)
-				if err == nil {
-					r = r.WithContext(context.WithValue(r.Context(), idCtxKey, parsed))
-					if r.Method == http.MethodGet {
-						ans.download(w, r)
-						return
-					}
-					apiError := apiError{
-						Code:    http.StatusMethodNotAllowed,
-						Message: "Method not allowed",
-					}
-					renderJSON(w, http.StatusMethodNotAllowed, apiError)
-					return
-				}
-			}
-		} else if len(parts) == 1 && parts[0] != "" {
-			// Handle /api/v1/jobs/{id}
-			id := parts[0]
-			parsed, err := uuid.Parse(id)
-			if err == nil {
-				r = r.WithContext(context.WithValue(r.Context(), idCtxKey, parsed))
-				switch r.Method {
-				case http.MethodGet:
-					ans.apiGetJob(w, r)
-					return
-				case http.MethodDelete:
-					ans.apiDeleteJob(w, r)
-					return
-				default:
-					apiError := apiError{
-						Code:    http.StatusMethodNotAllowed,
-						Message: "Method not allowed",
-					}
-					renderJSON(w, http.StatusMethodNotAllowed, apiError)
-					return
-				}
-			}
-		}
-		
-		// If no match, return 404
-		apiError := apiError{
-			Code:    http.StatusNotFound,
-			Message: "Not found",
-		}
-		renderJSON(w, http.StatusNotFound, apiError)
 	})
 
 	handler := securityHeaders(mux)
