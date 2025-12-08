@@ -62,4 +62,8 @@ RUN chmod -R 755 /opt/browsers \
 
 COPY --from=builder /usr/bin/google-maps-scraper /usr/bin/
 
-ENTRYPOINT ["google-maps-scraper"]
+# Create data directory
+RUN mkdir -p /app/data
+
+# Default to web mode for Railway
+CMD ["-web", "-data-folder", "/app/data"]

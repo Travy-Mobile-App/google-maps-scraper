@@ -1,0 +1,18 @@
+# Ignore files for Railway deployment
+.git
+.gitignore
+*.md
+!README.md
+testdata/
+examples/
+*.sh
+webdata/
+cache/
+*.csv
+*.json
+!go.mod
+!go.sum
+.env
+.env.local
+.DS_Store
+

@@ -128,6 +128,11 @@ func ParseConfig() *Config {
 
 	flag.Parse()
 
+	// Support Railway's PORT environment variable
+	if port := os.Getenv("PORT"); port != "" && cfg.WebRunner {
+		cfg.Addr = "0.0.0.0:" + port
+	}
+
 	if cfg.AwsAccessKey == "" {
 		cfg.AwsAccessKey = os.Getenv("MY_AWS_ACCESS_KEY")
 	}

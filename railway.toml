@@ -1,0 +1,9 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "google-maps-scraper -web -data-folder /app/data"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
