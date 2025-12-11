@@ -120,17 +120,27 @@ func (j *PlaceJob) BrowserActions(ctx context.Context, page playwright.Page) scr
 
 	clickRejectCookiesIfRequired(page)
 
-	const defaultTimeout = 5000
+	const defaultTimeout = 10000 // Increased timeout for better reliability
 
-	err = page.WaitForURL(page.URL(), playwright.PageWaitForURLOptions{
-		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
-		Timeout:   playwright.Float(defaultTimeout),
+	// Wait for page to be fully loaded and JavaScript initialized
+	err = page.WaitForLoadState(playwright.PageWaitForLoadStateOptions{
+		State:   playwright.LoadStateNetworkidle,
+		Timeout: playwright.Float(defaultTimeout),
 	})
 	if err != nil {
-		resp.Error = err
-
-		return resp
+		// Fallback to DOMContentLoaded if networkidle times out
+		err = page.WaitForLoadState(playwright.PageWaitForLoadStateOptions{
+			State:   playwright.LoadStateDomcontentloaded,
+			Timeout: playwright.Float(defaultTimeout),
+		})
+		if err != nil {
+			resp.Error = err
+			return resp
+		}
 	}
+
+	// Wait a bit more for JavaScript to initialize APP_INITIALIZATION_STATE
+	page.WaitForTimeout(1000) // 1 second for APP_INITIALIZATION_STATE to be ready
 
 	resp.URL = pageResponse.URL()
 	resp.StatusCode = pageResponse.Status()
@@ -182,9 +192,19 @@ func (j *PlaceJob) extractJSON(page playwright.Page) ([]byte, error) {
 		return nil, err
 	}
 
+	// Handle case where JavaScript returns null or different type
+	if rawI == nil {
+		return nil, fmt.Errorf("page evaluation returned null - page may not be fully loaded")
+	}
+
 	raw, ok := rawI.(string)
 	if !ok {
-		return nil, fmt.Errorf("could not convert to string")
+		// Try to convert other types to string
+		if rawStr, ok := rawI.(fmt.Stringer); ok {
+			raw = rawStr.String()
+		} else {
+			return nil, fmt.Errorf("could not convert to string, got type %T: %v", rawI, rawI)
+		}
 	}
 
 	const prefix = `)]}'`
@@ -216,15 +236,23 @@ func ctxWait(ctx context.Context, dur time.Duration) {
 
 const js = `
 function parse() {
+	// Wait for APP_INITIALIZATION_STATE to be available
+	if (!window.APP_INITIALIZATION_STATE || !window.APP_INITIALIZATION_STATE[3]) {
+		return null;
+	}
 	const appState = window.APP_INITIALIZATION_STATE[3];
 	if (!appState) {
 		return null;
 	}
 	const keys = Object.keys(appState);
+	if (keys.length === 0) {
+		return null;
+	}
 	const key = keys[0];
 	if (appState[key] && appState[key][6]) {
 		return appState[key][6];
 	}
 	return null;
 }
+parse();
 `

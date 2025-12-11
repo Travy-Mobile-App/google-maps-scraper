@@ -4,11 +4,24 @@
 
 ### 1. Start the Server
 
+**Basic (slow - concurrency=1):**
 ```bash
 ./google-maps-scraper -web -data-folder webdata -addr :8080
 ```
 
+**Recommended (faster - concurrency=8):**
+```bash
+./google-maps-scraper -web -data-folder webdata -addr :8080 -c 8
+```
+
+**Maximum Performance (if you have resources):**
+```bash
+./google-maps-scraper -web -data-folder webdata -addr :8080 -c 16
+```
+
 The server will start on `http://localhost:8080`
+
+**Performance Tip:** Use `-c` flag to set concurrency (parallel browser tabs). Higher = faster but uses more resources. Start with `-c 8` for good balance.
 
 ### 2. Test the API
 
