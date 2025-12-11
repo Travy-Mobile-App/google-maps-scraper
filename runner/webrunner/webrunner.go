@@ -86,6 +86,16 @@ func (w *webrunner) work(ctx context.Context) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
+	// Process up to 3 jobs in parallel (adjust based on resources)
+	maxParallelJobs := 3
+	if w.cfg.Concurrency > 0 {
+		// Allow up to concurrency/2 parallel jobs, but cap at 4
+		maxParallelJobs = max(1, min(w.cfg.Concurrency/2, 4))
+	}
+
+	sem := make(chan struct{}, maxParallelJobs)
+	log.Printf("web runner configured: concurrency=%d, max_parallel_jobs=%d", w.cfg.Concurrency, maxParallelJobs)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -101,29 +111,37 @@ func (w *webrunner) work(ctx context.Context) error {
 				case <-ctx.Done():
 					return nil
 				default:
-					t0 := time.Now().UTC()
-					if err := w.scrapeJob(ctx, &jobs[i]); err != nil {
-						params := map[string]any{
-							"job_count": len(jobs[i].Data.Keywords),
-							"duration":  time.Now().UTC().Sub(t0).String(),
-							"error":     err.Error(),
+					// Acquire semaphore slot
+					sem <- struct{}{}
+					
+					// Process job in goroutine
+					go func(job *web.Job) {
+						defer func() { <-sem }() // Release semaphore when done
+						
+						t0 := time.Now().UTC()
+						if err := w.scrapeJob(ctx, job); err != nil {
+							params := map[string]any{
+								"job_count": len(job.Data.Keywords),
+								"duration":  time.Now().UTC().Sub(t0).String(),
+								"error":     err.Error(),
+							}
+
+							evt := tlmt.NewEvent("web_runner", params)
+
+							_ = runner.Telemetry().Send(ctx, evt)
+
+							log.Printf("error scraping job %s: %v", job.ID, err)
+						} else {
+							params := map[string]any{
+								"job_count": len(job.Data.Keywords),
+								"duration":  time.Now().UTC().Sub(t0).String(),
+							}
+
+							_ = runner.Telemetry().Send(ctx, tlmt.NewEvent("web_runner", params))
+
+							log.Printf("job %s scraped successfully", job.ID)
 						}
-
-						evt := tlmt.NewEvent("web_runner", params)
-
-						_ = runner.Telemetry().Send(ctx, evt)
-
-						log.Printf("error scraping job %s: %v", jobs[i].ID, err)
-					} else {
-						params := map[string]any{
-							"job_count": len(jobs[i].Data.Keywords),
-							"duration":  time.Now().UTC().Sub(t0).String(),
-						}
-
-						_ = runner.Telemetry().Send(ctx, tlmt.NewEvent("web_runner", params))
-
-						log.Printf("job %s scraped successfully", jobs[i].ID)
-					}
+					}(&jobs[i])
 				}
 			}
 		}

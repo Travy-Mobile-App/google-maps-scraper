@@ -3,10 +3,16 @@
 ## Start the API Server
 
 ```bash
+# Basic (default concurrency)
 ./google-maps-scraper -web -data-folder webdata
+
+# With higher concurrency for better performance
+./google-maps-scraper -web -data-folder webdata -c 4
 ```
 
 The server will start on `http://localhost:8080`
+
+**Performance Tip:** Use `-c` flag to set concurrency (number of parallel browser tabs). Default is `CPU cores / 2`. For better performance, try `-c 4` or `-c 8`.
 
 ## Quick Examples
 
